@@ -611,7 +611,7 @@ function get_and_validate_required_args() {
   ServerIP=$(resolve_server_ip_from_CIDR $CIDR) || msg "ko" "Could not resolve ip from CIDR: $CIDR"
   Subnet=$(resolve_subnet_from_CIDR $CIDR) || msg "ko" "Could not resolve subnet from CIDR: $CIDR"
   msg "ok" "The server will be assigned to this IP:" false
-  msg $ServerIP/$Subnet
+  msg $ServerIP/32
 
   # check WG_PORT
   if [ -z "$WG_PORT" ]; then
@@ -974,8 +974,8 @@ function print_help() {
   echo "-pp |--webuiport|--uiport  [the port on which WireGuard UI will run ($DEFAULT_WG_WEB_UI_PORT)]"
   echo "-l  |--localonly           [ <1|0> if set to 1 the web ui can be accessed only from localhost (default: $DEFAULT_WGUI_LOCALHOST_ONLY)]"
   echo "-us |--username            [username of WireGuard-UI ($DEFAULT_WGUI_USERNAME)]"
-  echo "-g  |--wguipath |--wguidir [the path where WireGuard-ui will be installed ($DEFAULT_WGUI_INTSTALLATION_PATH)]"
   echo "-pw |--password            [password of WireGuard-UI ($DEFAULT_WGUI_PASSWORD)]"
+  echo "-g  |--wguipath |--wguidir [the path where WireGuard-ui will be installed ($DEFAULT_WGUI_INTSTALLATION_PATH)]"
   echo "-b  |--wguibin             [path where the symbolic link for wgui will be made ($DEFAULT_WGUI_BIN_PATH)]"
   echo "-ctl|--systemctl           [path to systemctl ($DEFAULT_SYSTEMCTL_PATH)]"
 }
