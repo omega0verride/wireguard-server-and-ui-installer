@@ -30,7 +30,7 @@ usage: ./setup.sh [args]
 Running ./setup.sh -q will try to install everything silently using the default values.  
 ### MAKE SURE YOU CHANGE THE UI PASSWORD OR USE --localonly
 
-The only time the quiet installer will ask for input is if there is a conflict with the WG interface or port.  
+The only time the __quiet__ installer will ask for input is if there is a conflict with the WG interface or port.  
 In that case it will prompt to delete any old failed or successfull installation with the same interface.  
 ```
  Interface 'wg0' already exists! Please specify another interface or remove the old one.
@@ -41,6 +41,25 @@ In that case it will prompt to delete any old failed or successfull installation
  WG_WEB_UI_PORT
 Do you want to remove any possible previous installation with this config? [n/y]
 ```
+
+Running as "non-quiet", without the --quiet flag will force the installer to ask for input on most of the values.  
+You can press enter to use the predefined, reccomended values for all of them.
+It will also check if the port or the interface specified is being used.
+
+All the properties can be configured from:
+1. editing the script default values
+2. specifying cli args
+3. using the interactive installer (without --quiet)
+or a combination of all
+
+### TODO:
+1. Add firewall config
+
+### ISSUES:
+1. The current WireGuard-UI download link from https://github.com/ngoduykhanh/wireguard-ui is outdated and does not recognise the specified environment args.
+If --online is specified the UI will not recognise the custom options and will use its own default config.
+I have request the owner to release a new build.
+The local build shipped with this script works as expected but is only compiled for amd64.
 
 A sample of a sucessful run
 ```
