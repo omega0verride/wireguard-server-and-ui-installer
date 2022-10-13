@@ -89,7 +89,7 @@ main() {
   msg "----------------------"
   msg "Installing WireGuard"
   msg "----------------------"
-  # apt -y install wireguard || { msg "ko" "Could not install WireGuard!"; exit 1; }
+  apt -y install wireguard || { msg "ko" "Could not install WireGuard!"; exit 1; }
   msg "ok" "Successfully installed WireGuard! Configuring..."
 
   msg ""
