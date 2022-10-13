@@ -21,8 +21,8 @@ usage: ./setup.sh [args]
 -pp |--webuiport|--uiport  [the port on which WireGuard UI will run (5000)]
 -l  |--localonly           [ <1|0> if set to 1 the web ui can be accessed only from localhost (default: 0)]
 -us |--username            [username of WireGuard-UI (admin)]
--g  |--wguipath |--wguidir [the path where WireGuard-ui will be installed (/opt/wgui)]
 -pw |--password            [password of WireGuard-UI (omega@wireguard)]
+-g  |--wguipath |--wguidir [the path where WireGuard-ui will be installed (/opt/wgui)]
 -b  |--wguibin             [path where the symbolic link for wgui will be made (/usr/local/bin)]
 -ctl|--systemctl           [path to systemctl (/usr/bin/systemctl)]
 ```  
@@ -89,7 +89,7 @@ A sample of a sucessful run
  No PublicInterface specified, using default: eth0
  No WireGuard config path specified, using default: /etc/wireguard
  No CIDR specified, using default: 10.8.0.0/26
- The server will be assigned to this IP:  10.8.0.1/26
+ The server will be assigned to this IP:  10.8.0.1/32
  No WireGuard listen port specified, using default: 51838
  Port available! 51838
  No download url specified, using default: https://github.com/ngoduykhanh/wireguard-ui/releases/download/v0.3.7/wireguard-ui-v0.3.7-linux-amd64.tar.gz
