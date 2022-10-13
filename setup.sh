@@ -959,7 +959,7 @@ function msg() {
 }
 
 function print_help() {
-  echo "usage: ./wireguard-setup.sh [args]"
+  echo "usage: ./setup.sh [args]"
   echo "-h  |--help                [print this help message]"
   echo "-s  |--silent|-q|--quiet   [the installation will not prompt for any input and will use the provided CLI/default values]"
   echo "-y  |--yes|--skipprompts   [the installation will not prompt for confirmations]"
