@@ -31,7 +31,7 @@ usage: ./setup.sh [args]
 It does __not__ point to the config file  
 It is used in combination with ```--wginterface``` to form the full path (/etc/wireguard/wg0.conf)  
 
-Running ./setup.sh -q will try to install everything silently using the default values.  
+Running ```./setup.sh -q``` will try to install everything silently using the default values.  
 ### MAKE SURE YOU CHANGE THE UI PASSWORD OR USE --localonly
 
 The only time the __quiet__ installer will ask for input is if there is a conflict with the WG interface or port.  
