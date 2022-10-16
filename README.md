@@ -26,10 +26,10 @@ usage: ./setup.sh [args]
 -b  |--wguibin             [path where the symbolic link for wgui will be made (/usr/local/bin)]
 -ctl|--systemctl           [path to systemctl (/usr/bin/systemctl)]
 ```  
-### Note  
---configpath is the path to the directory where all the config files are located/will be generated (/etc/wireguard)  
-It does __not__ point the config file  
-It is used in combination with --wginterface to form the full path (/etc/wireguard/wg0.conf)  
+### Note:  
+```--configpath``` is the path to the directory where all the config files are located/will be generated (/etc/wireguard)  
+It does __not__ point to the config file  
+It is used in combination with ```--wginterface``` to form the full path (/etc/wireguard/wg0.conf)  
 
 Running ./setup.sh -q will try to install everything silently using the default values.  
 ### MAKE SURE YOU CHANGE THE UI PASSWORD OR USE --localonly
