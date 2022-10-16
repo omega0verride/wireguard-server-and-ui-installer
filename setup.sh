@@ -9,16 +9,17 @@ WGUI_KEYPARI_FILE_PATH="db/server/keypair.json" # the path where WireGuard-UI sa
 # WireGuard
 DEFAULT_WIREGUARD_CONFIG_PATH="/etc/wireguard"                           # the path where WireGuard config will be created
 DEFAULT_WIREGUARD_INTERFACE="wg0"                                        # name of the WireGuard interface that will be created
-DEFAULT_CIDR=10.8.0.0/26                                                 # the server interface address, the wg server will be assigned the first IP of the range, i.e: 10.8.0.1
+DEFAULT_CIDR=10.8.0.0/26                                                 # the server interface address, the wg server will be assigned the first IP of the range, i.e: 10.8.0.1 unless --serverip is specified
 DEFAULT_PUBLIC_INTERFACE=$(ip route list default | awk -- '{printf $5}') # the default public interface guess
 DEFAULT_WG_PORT=51838                                                    # the port on which WireGuard will run
 
 # WGUI
+DEFAULT_ONLINE=0
 DEFAULT_WGUI_DOWNLOAD_LINK="https://github.com/ngoduykhanh/wireguard-ui/releases/download/v0.3.7/wireguard-ui-v0.3.7-linux-amd64.tar.gz" # Link to the latest wgui release
 DEFAULT_WGUI_INTSTALLATION_PATH="/opt/wgui"                                                                                              # the path where WireGuard-ui will be installed
 DEFAULT_WGUI_BIN_PATH="/usr/local/bin"                                                                                                   # path where the symbolic link for wgui will be made
 DEFAULT_WG_WEB_UI_PORT=5000
-DEFAULT_WGUI_LOCALHOST_ONLY=0
+DEFAULT_WGUI_LOCALHOST_ONLY=1
 DEFAULT_WGUI_USERNAME="admin"
 DEFAULT_WGUI_PASSWORD="omega@wireguard"
 
@@ -27,6 +28,7 @@ DEFAULT_WGUI_PASSWORD="omega@wireguard"
 # SILENT=''
 # CONFIRM=''
 # ONLINE=''
+# INSTALL_ONLY_WGUI=''
 
 # SYSTEMCTL_PATH=''
 
@@ -84,44 +86,52 @@ main() {
   msg "----------------------"
   msg "ko" "Installing Dependencies!"
   msg "----------------------"
-  apt install iproute2
+  if [ ! $(which iproute2)  ]; then
+    apt install iproute2 -y || { msg "ko" "Could not install package 'iproute2'!"; exit 1; }
+  fi
 
-  msg "----------------------"
-  msg "Installing WireGuard"
-  msg "----------------------"
-  apt -y install wireguard || { msg "ko" "Could not install WireGuard!"; exit 1; }
-  msg "ok" "Successfully installed WireGuard! Configuring..."
+  if [ "$INSTALL_ONLY_WGUI" -eq 0 ]; then
+    msg "----------------------"
+    msg "Installing WireGuard"
+    msg "----------------------"
+    apt -y install wireguard || { msg "ko" "Could not install package 'wireguard'!"; exit 1; }
+    msg "ok" "Successfully installed WireGuard! Configuring..."
 
-  msg ""
-  mkdir -p $WIREGUARD_CONFIG_PATH || {
-    msg "Could not create config root dir! PATH='$WIREGUARD_CONFIG_PATH'"
-    exit 1
-  }
 
-  echo ""
-  generate_wg_keypair || {
-    msg "ko" "Could not generate key pair for WireGuard!"
-    exit 1
-  }
+    msg ""
+    mkdir -p $WIREGUARD_CONFIG_PATH || {
+      msg "Could not create config root dir! PATH='$WIREGUARD_CONFIG_PATH'"
+      exit 1
+    }
 
-  echo ""
-  generate_wg_config || {
-    msg "ko" "Could not generate config!"
-    exit 1
-  }
+    echo ""
+    generate_wg_keypair $EXISTING_PRIVATE_KEY || {
+      msg "ko" "Could not generate key-pair for WireGuard!"
+      exit 1
+    }
 
-  echo ""
-  enable_ipv4_forwarding
+    echo ""
+    generate_wg_config || {
+      msg "ko" "Could not generate config!"
+      exit 1
+    }
 
+    echo ""
+    enable_ipv4_forwarding
+
+    # to do firewall
+
+    echo ""
+    create_wg_service
+  fi 
+  # put wireguard config on the if above
+  # leave wg-ui fw config outside
   # todo firewall config
   # ufw allow 51820/udp
   # ufw disable
   # ufw enable
 
   # todo postup postdown?
-
-  echo ""
-  create_wg_service
 
   echo ""
   install_wg_ui
@@ -131,6 +141,14 @@ main() {
 
   echo ""
   create_wgui_service
+
+  if [ "$INSTALL_ONLY_WGUI" -eq 1 ]; then
+    echo ""
+    generate_wg_keypair $EXISTING_PRIVATE_KEY || {
+      msg "ko" "Could not generate key-pair from existing pricate key!"
+      exit 1
+    }
+  fi
 
   echo ""
   export_keypair || {
@@ -148,15 +166,27 @@ main() {
 # ------ installer functions -------
 
 function generate_wg_keypair() {
-  msg "Generating key pair for WireGuard"
-  msg "Generating private key... -> file $PrivateKeyFile"
+  msg "Generating key-pair for WireGuard"
+  existingPrivateKey=$1
+  if [ -z "$existingPrivateKey" ]; then
+    msg "warn" "No private key specified. Generating new key!"
+  else
+    msg "warn" "Using specified private key: $1"
+  fi
+
+  msg "Writing private key... -> file $PrivateKeyFile"
   touch $PrivateKeyFile || exit 1
   chmod 700 $PrivateKeyFile # allow access only to root users
-  wg genkey >"$PrivateKeyFile" || return 1
+  if [ -z "$existingPrivateKey" ]; then
+    wg genkey >"$PrivateKeyFile" || return 1
+  else
+    echo $existingPrivateKey >"$PrivateKeyFile" || return 1
+  fi
+  
   PrivateKey=$(cat $PrivateKeyFile) || return 1
   msg "ok" "PrivateKey: $PrivateKey"
 
-  msg "Generating public key... -> file $PublicKeyFile"
+  msg "Writing public key... -> file $PublicKeyFile"
   wg pubkey <<<"$PrivateKey" >"$PublicKeyFile" || return 1
   PublicKey=$(cat $PublicKeyFile) || return 1
   msg "ok" "PublicKey: $PublicKey"
@@ -187,7 +217,7 @@ PostDown = ""
 }
 
 function export_keypair() {
-  msg "Exporting keypair to WireGuard-UI -> $WGUI_WORKING_DIR/$WGUI_KEYPARI_FILE_PATH"
+  msg "Exporting key-pair to WireGuard-UI -> $WGUI_WORKING_DIR/$WGUI_KEYPARI_FILE_PATH"
   printf -v keypair "{
         \"private_key\": \"$PrivateKey\",
         \"public_key\": \"$PublicKey\",
@@ -196,7 +226,7 @@ function export_keypair() {
 "
   rm -f $WGUI_WORKING_DIR/$WGUI_KEYPARI_FILE_PATH || return 1
   echo "$keypair" >>$WGUI_WORKING_DIR/$WGUI_KEYPARI_FILE_PATH || return 1
-  msg "ok" "Successfully exported keypair!"
+  msg "ok" "Successfully exported key-pair!"
   return 0
 }
 
@@ -346,10 +376,10 @@ function prompt_clean_old_installation_with_same_config() {
       sleep 5
       main "$@"
       ;;
-    *) ;;
+    *) return 1;;
     esac
     ;;
-  *) ;;
+  *) return 1;;
   esac
 }
 
@@ -369,8 +399,15 @@ function parse_cli_args() {
     -y | --yes | --skipprompts)
       CONFIRM=0
       ;;
+    -ui | --uionly)
+      INSTALL_ONLY_WGUI=1
+      ;;
     -w | --config | --configpath)
       WIREGUARD_CONFIG_PATH="$2"
+      shift
+      ;;
+    -pki|--privatekey)
+      $EXISTING_PRIVATE_KEY="$2"
       shift
       ;;
     -p | --port | --wgport)
@@ -389,8 +426,15 @@ function parse_cli_args() {
       CIDR="$2"
       shift
       ;;
+    -ip | --serverip)
+      ServerIP="$2"
+      shift
+      ;;
     -o | --online)
-      ONLINE="true"
+      ONLINE=1
+      ;;
+    -lo | --local)
+      ONLINE=0
       ;;
     -u | --wguilink | --wguiurl)
       WGUI_DOWNLOAD_LINK="$2"
@@ -438,9 +482,11 @@ function parse_cli_args() {
   msg "info" "CLI Values:"
   msg "info" "--WireGuard--"
   print_user_cli_value "WIREGUARD_CONFIG_PATH" "$WIREGUARD_CONFIG_PATH"
+  print_user_cli_value "$EXISTING_PRIVATE_KEY" "$EXISTING_PRIVATE_KEY"
   print_user_cli_value "PUBLIC_INTERFACE" "$PUBLIC_INTERFACE"
   print_user_cli_value "WIREGUARD_INTERFACE" "$WIREGUARD_INTERFACE"
   print_user_cli_value "CIDR" "$CIDR"
+  print_user_cli_value "ServerIP" "$ServerIP"
   print_user_cli_value "WG_PORT" "$WG_PORT"
   msg "info" "--WGUI--"
   print_user_cli_value "WGUI_DOWNLOAD_LINK" "$WGUI_DOWNLOAD_LINK"
@@ -453,11 +499,36 @@ function parse_cli_args() {
   msg "info" "--Other--"
   print_user_cli_value "SILENT" "$SILENT"
   print_user_cli_value "CONFIRM" "$CONFIRM"
+  print_user_cli_value "ONLINE" "$ONLINE"
+  print_user_cli_value "INSTALL_ONLY_WGUI" "$INSTALL_ONLY_WGUI"
   print_user_cli_value "SYSTEMCTL_PATH" "$SYSTEMCTL_PATH"
   echo ""
 }
 
 function get_and_validate_required_args() {
+
+  # check INSTALL_ONLY_WGUI
+  if [ -z "$INSTALL_ONLY_WGUI" ]; then
+    if [ "$SILENT" == 0 ]; then
+      while true; do
+        read -p "Do you want the istaller to insall only wireguard-ui and use an existing wireguard server (n)? [n/y]: " tmpUIonly
+        if [ -z "$tmpUIonly" ]; then break; fi
+        if [ "$CONFIRM" == 1 ]; then
+          read -p "Confirm choice? [y/n] " yn
+          case $yn in
+          "" | Y | y | yes | Yes | YES)
+            INSTALL_ONLY_WGUI=1
+            break
+            ;;
+          *) ;;
+          esac
+        fi
+      done
+    fi
+    if [ -z "$INSTALL_ONLY_WGUI" ]; then
+      INSTALL_ONLY_WGUI=0
+    fi
+  fi
 
   # check SYSTEMCTL_PATH
   if [ -z "$SYSTEMCTL_PATH" ]; then
@@ -496,7 +567,7 @@ function get_and_validate_required_args() {
         defaultFlag=1
       fi
       eval_services $WIREGUARD_INTERFACE
-      if check_if_network_interface_exitsts $WIREGUARD_INTERFACE; then
+      if [ "$INSTALL_ONLY_WGUI" -eq 1 ] || check_if_network_interface_exitsts $WIREGUARD_INTERFACE; then
         if [ "$SILENT" == 0 ]; then
           if [ "$defaultFlag" == 0 ]; then
             if [ "$CONFIRM" == 1 ]; then
@@ -523,42 +594,16 @@ function get_and_validate_required_args() {
     done
     eval_services $WIREGUARD_INTERFACE
   else
-    if ! check_if_network_interface_exitsts $WIREGUARD_INTERFACE; then
+    if [ "$INSTALL_ONLY_WGUI" -eq 0 ] && ! check_if_network_interface_exitsts $WIREGUARD_INTERFACE; then
       exit 1
     fi
-  fi
-
-  # check PUBLIC_INTERFACE
-  if [ -z "$PUBLIC_INTERFACE" ]; then
-    if [ "$SILENT" == 0 ]; then
-      echo "Available interfaces: "
-      ip link show
-      while true; do
-        read -p "Provide the name of the public interface you want to use. Press enter to use the default interface ($DEFAULT_PUBLIC_INTERFACE): " tmpPublicInterface
-        if [ -z "$tmpPublicInterface" ]; then break; fi
-        if [ "$CONFIRM" == 1 ]; then
-          read -p "Confirm choice? [y/n] " yn
-          case $yn in
-          "" | Y | y | yes | Yes | YES)
-            PUBLIC_INTERFACE=$tmpPublicInterface
-            break
-            ;;
-          *) ;;
-          esac
-        fi
-      done
-    fi
-    if [ -z "$PUBLIC_INTERFACE" ]; then
-      PUBLIC_INTERFACE=$DEFAULT_PUBLIC_INTERFACE
-      msg "warn" "No PublicInterface specified, using default: $PUBLIC_INTERFACE"
-    fi
-  fi
+  fi  
 
   # check WIREGUARD_CONFIG_PATH
   if [ -z "$WIREGUARD_CONFIG_PATH" ]; then
     if [ "$SILENT" == 0 ]; then
       while true; do
-        read -p "Provide the absolute path where the WireGuard config file should be created. Press enter to use the default path ($DEFAULT_WIREGUARD_CONFIG_PATH): " tmpWireGuardConfigPath
+        read -p "Provide the absolute path where the WireGuard config file should be created or is located. Press enter to use the default path ($DEFAULT_WIREGUARD_CONFIG_PATH): " tmpWireGuardConfigPath
         if [ -z "$tmpWireGuardConfigPath" ]; then break; fi
         if [ "$CONFIRM" == 1 ]; then
           read -p "Confirm choice? [y/n] " yn
@@ -578,11 +623,34 @@ function get_and_validate_required_args() {
     fi
   fi
 
+  # check EXISTING_PRIVATE_KEY
+  if [ -z "$EXISTING_PRIVATE_KEY" ]; then
+    if [ "$SILENT" == 0 ]; then
+      while true; do
+        read -p "Enter the private key to be used with wireguard-server. Press enter to auto generate a new key.: " tmpKey
+        if [ -z "$tmpKey" ]; then break; fi
+        if [ "$CONFIRM" == 1 ]; then
+          read -p "Confirm choice? [y/n] " yn
+          case $yn in
+          "" | Y | y | yes | Yes | YES)
+            EXISTING_PRIVATE_KEY=$tmpKey
+            break
+            ;;
+          *) ;;
+          esac
+        fi
+      done
+    fi
+    if [ -z "$EXISTING_PRIVATE_KEY" ]; then
+      msg "warn" "No Private Key specified. A new ket will be generated."
+    fi
+  fi
+
   # check CIDR
   if [ -z "$CIDR" ]; then
     if [ "$SILENT" == 0 ]; then
       while true; do
-        read -p "Please enter the server subnet in CIDR fromat. The ip will be used as the server IP. Press enter to use the default value ($DEFAULT_CIDR):  " CIDR
+        read -p "Please enter the server subnet in CIDR fromat. The wg server will be assigned the first IP of the range, i.e: 10.8.0.1 unless --serverip is specified. Press enter to use the default value ($DEFAULT_CIDR):  " CIDR
         if [ -z "$CIDR" ]; then break; fi
         if validate_cidr $CIDR; then
           if [ "$CONFIRM" == 1 ]; then
@@ -608,7 +676,30 @@ function get_and_validate_required_args() {
     fi
   fi
 
-  ServerIP=$(resolve_server_ip_from_CIDR $CIDR) || msg "ko" "Could not resolve ip from CIDR: $CIDR"
+  # check ServerIP
+  if [ -z "$ServerIP" ]; then
+    if [ "$SILENT" == 0 ]; then
+      while true; do
+        read -p "The ip of the wireguard server. Should be in the CIDR subnet. i.e: 10.8.0.1. Press enter to auto-assign the value: " tmpIP
+        if [ -z "$tmpIP" ]; then break; fi
+        if [ "$CONFIRM" == 1 ]; then
+          read -p "Confirm choice? [y/n] " yn
+          case $yn in
+          "" | Y | y | yes | Yes | YES)
+            ServerIP=$tmpIP
+            break
+            ;;
+          *) ;;
+          esac
+        fi
+      done
+    fi
+    if [ -z "$ServerIP" ]; then
+      ServerIP=$(resolve_server_ip_from_CIDR $CIDR) || msg "ko" "Could not resolve ip from CIDR: $CIDR"
+      msg "warn" "No ServerIP specified, auto-assigning: $ServerIP"
+    fi
+  fi
+
   Subnet=$(resolve_subnet_from_CIDR $CIDR) || msg "ko" "Could not resolve subnet from CIDR: $CIDR"
   msg "ok" "The server will be assigned to this IP:" false
   msg $ServerIP/32
@@ -625,7 +716,7 @@ function get_and_validate_required_args() {
         msg "warn" "No WireGuard listen port specified, using default: $WG_PORT"
         defaultFlag=1
       fi
-      if check_if_port_is_available $WG_PORT; then
+      if [ "$INSTALL_ONLY_WGUI" -eq 1 ] || check_if_port_is_available $WG_PORT; then
         if [ "$SILENT" == 0 ]; then
           if [ "$defaultFlag" == 0 ]; then
             if [ "$CONFIRM" == 1 ]; then
@@ -651,22 +742,22 @@ function get_and_validate_required_args() {
       fi
     done
   else
-    if ! check_if_port_is_available $WG_PORT; then
+    if [ "$INSTALL_ONLY_WGUI" -eq 0 ] && ! check_if_port_is_available $WG_PORT; then
       exit 1
     fi
   fi
 
-  # check WGUI_DOWNLOAD_LINK
-  if [ -z "$WGUI_DOWNLOAD_LINK" ]; then
+    # check ONLINE
+  if [ -z "$ONLINE" ]; then
     if [ "$SILENT" == 0 ]; then
       while true; do
-        read -p "Provide the download url of WGUI. Make sure the url is valid, otherwise, press enter to use the default latest download url ($DEFAULT_WGUI_DOWNLOAD_LINK): " tmpWguiDownloadLink
-        if [ -z "$tmpWguiDownloadLink" ]; then break; fi
+        read -p "Do you want to download the wg-ui binary from github or use the wireguard-ui file included with this script. Note that the online build may not work. Last time I checked their builds are outdated. (y->online, defaults to: no): [n/y]" tmpOnline
+        if [ -z "$tmpOnline" ]; then break; fi
         if [ "$CONFIRM" == 1 ]; then
           read -p "Confirm choice? [y/n] " yn
           case $yn in
           "" | Y | y | yes | Yes | YES)
-            WGUI_DOWNLOAD_LINK=$tmpWguiDownloadLink
+            ONLINE=1
             break
             ;;
           *) ;;
@@ -674,11 +765,41 @@ function get_and_validate_required_args() {
         fi
       done
     fi
-    if [ -z "$WGUI_DOWNLOAD_LINK" ]; then
-      WGUI_DOWNLOAD_LINK=$DEFAULT_WGUI_DOWNLOAD_LINK
-      msg "warn" "No download url specified, using default: $WGUI_DOWNLOAD_LINK"
+    if [ -z "$ONLINE" ]; then
+      ONLINE=$DEFAULT_ONLINE  
+      if [ "$ONLINE" -eq 1 ]; then
+        msg "warn" "The installer will use the online wireguard-ui build."
+      else
+        msg "warn" "The installer will use the local wireguard-ui build."
+      fi
     fi
   fi
+
+  if [ "$ONLINE" -eq 1 ]; then
+    # check WGUI_DOWNLOAD_LINK
+    if [ -z "$WGUI_DOWNLOAD_LINK" ]; then
+      if [ "$SILENT" == 0 ]; then
+        while true; do
+          read -p "Provide the download url of WGUI. Make sure the url is valid, otherwise, press enter to use the default latest download url ($DEFAULT_WGUI_DOWNLOAD_LINK): " tmpWguiDownloadLink
+          if [ -z "$tmpWguiDownloadLink" ]; then break; fi
+          if [ "$CONFIRM" == 1 ]; then
+            read -p "Confirm choice? [y/n] " yn
+            case $yn in
+            "" | Y | y | yes | Yes | YES)
+              WGUI_DOWNLOAD_LINK=$tmpWguiDownloadLink
+              break
+              ;;
+            *) ;;
+            esac
+          fi
+        done
+      fi
+      if [ -z "$WGUI_DOWNLOAD_LINK" ]; then
+        WGUI_DOWNLOAD_LINK=$DEFAULT_WGUI_DOWNLOAD_LINK
+        msg "warn" "No download url specified, using default: $WGUI_DOWNLOAD_LINK"
+      fi
+    fi
+    fi
 
   # check WGUI_INTSTALLATION_PATH
   if [ -z "$WGUI_INTSTALLATION_PATH" ]; then
@@ -775,9 +896,8 @@ function get_and_validate_required_args() {
   if [ -z "$WGUI_LOCALHOST_ONLY" ]; then
     if [ "$SILENT" == 0 ]; then
       while true; do
-        read -p "Should the Web UI accessible outside localhost? [y/n] ($DEFAULT_WGUI_LOCALHOST_ONLY): " wguiLocalhostOnly_YN
-        if [ -z "$tmpDefaultSystemctlPath" ]; then break; fi
         WGUI_LOCALHOST_ONLY=0
+        read -p "Should the Web UI accessible outside localhost? [y/n] ($DEFAULT_WGUI_LOCALHOST_ONLY): " wguiLocalhostOnly_YN
         case $wguiLocalhostOnly_YN in
         "" | Y | y | yes | Yes | YES)
           WGUI_LOCALHOST_ONLY=1
@@ -911,8 +1031,7 @@ function check_if_port_is_available() {
     msg "ko" "******************************************************"
     msg "ko" "* Error: Port '$1' is being used or invalid value! *"
     msg "ko" "******************************************************"
-    prompt_clean_old_installation_with_same_config
-    return 1
+    prompt_clean_old_installation_with_same_config || return 1
   fi
 }
 
@@ -921,8 +1040,7 @@ function check_if_network_interface_exitsts() {
   for i in $interfaces; do
     if [ "$i" = "$1" ]; then
       msg "ko" "Interface '$1' already exists! Please specify another interface or remove the old one."
-      prompt_clean_old_installation_with_same_config
-      return 1
+      prompt_clean_old_installation_with_same_config || return 1
     fi
   done
   return 0
@@ -963,12 +1081,16 @@ function print_help() {
   echo "-h  |--help                [print this help message]"
   echo "-s  |--silent|-q|--quiet   [the installation will not prompt for any input and will use the provided CLI/default values]"
   echo "-y  |--yes|--skipprompts   [the installation will not prompt for confirmations]"
+  echo "-ui |--uionly              [if specified the insaller will only install and configure wireguard-ui based on the specified config file]"
   echo "-w  |--config|--configpath [the path where WireGuard config will be created ($DEFAULT_WIREGUARD_CONFIG_PATH)]"
-  echo "-p  |-port|--wgport        [the port on which WireGuard will listen ($DEFAULT_WG_PORT)]"
+  echo "-pki|--privatekey          [specifies an existing private instead of generating a new one.]"
+  echo "-p  |--port|--wgport       [the port on which WireGuard will listen ($DEFAULT_WG_PORT)]"
   echo "-pbi|--publicinterface     [the interface with an internet connection ($DEFAULT_PUBLIC_INTERFACE)]"
   echo "-wgi|--wginterface         [the interface that will be created for WireGuard ($DEFAULT_WIREGUARD_INTERFACE)]"
-  echo "-c  |--cidr                [the server interface address, the wg server will be assigned the first IP of the range, i.e: 10.8.0.1 ($DEFAULT_CIDR)]"
+  echo "-c  |--cidr                [the server interface address, the wg server will be assigned the first IP of the range, i.e: 10.8.0.1 unless --serverip is specified ($DEFAULT_CIDR)]"
+  echo "-ip |--serverip            [The wg server will be assigned the first IP of the CIDR range, --server ip overrides this. (null)]" 
   echo "-o  |--online              [if specified, the script will download wireguard-ui from --wguilink, otherwise it will use the local build in the same dir]"
+  echo "-lo |--local               [if specified, the script will use tge local wireguard-ui build included with this script]"
   echo "-u  |--wguilink |--wguiurl [link to the latest wgui release "
   echo "                            ($DEFAULT_WGUI_DOWNLOAD_LINK)]"
   echo "-pp |--webuiport|--uiport  [the port on which WireGuard UI will run ($DEFAULT_WG_WEB_UI_PORT)]"
@@ -1000,6 +1122,7 @@ function print_final_config_values() {
   msg "info" "Final Values:"
   msg "info" "--WireGuard--"
   print_final_value "WIREGUARD_CONFIG_PATH" "$WIREGUARD_CONFIG_PATH"
+  print_final_value "$EXISTING_PRIVATE_KEY" "$EXISTING_PRIVATE_KEY"
   print_final_value "PUBLIC_INTERFACE" "$PUBLIC_INTERFACE"
   print_final_value "WIREGUARD_INTERFACE" "$WIREGUARD_INTERFACE"
   print_final_value "CIDR" "$CIDR"
@@ -1019,6 +1142,7 @@ function print_final_config_values() {
   print_final_value "WGUI_USERNAME" "$WGUI_USERNAME"
   print_final_value "WGUI_PASSWORD" "$WGUI_PASSWORD"
   msg "info" "--Other--"
+  print_user_cli_value "INSTALL_ONLY_WGUI" "$INSTALL_ONLY_WGUI"
   print_final_value "SYSTEMCTL_PATH" "$SYSTEMCTL_PATH"
 }
 
