@@ -243,7 +243,7 @@ function install_wg_ui() {
   fi
   msg "ok" "Directory created sucessfully!"
 
-  if [ -z "$ONLINE" ]; then
+  if [ "$ONLINE" -eq 0 ]; then
       cp wireguard-ui $WGUI_INTSTALLATION_PATH || { msg "ko" "Could not copy wireguard-ui from installer directory!"; exit 1; } # add support for local build in same directory
   else
     msg "Downlading and extracting WG-UI from $WGUI_DOWNLOAD_LINK"
