@@ -898,6 +898,7 @@ function get_and_validate_required_args() {
       while true; do
         WGUI_LOCALHOST_ONLY=0
         read -p "Should the Web UI accessible outside localhost? [y/n] ($DEFAULT_WGUI_LOCALHOST_ONLY): " wguiLocalhostOnly_YN
+        if [ -z "$wguiLocalhostOnly_YN" ]; then break;
         case $wguiLocalhostOnly_YN in
         "" | Y | y | yes | Yes | YES)
           WGUI_LOCALHOST_ONLY=1
