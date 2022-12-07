@@ -225,6 +225,7 @@ function export_keypair() {
 }
 "
   rm -f $WGUI_WORKING_DIR/$WGUI_KEYPARI_FILE_PATH || return 1
+  mkdir -p $WGUI_WORKING_DIR/$WGUI_KEYPARI_FILE_PATH
   echo "$keypair" >>$WGUI_WORKING_DIR/$WGUI_KEYPARI_FILE_PATH || return 1
   msg "ok" "Successfully exported key-pair!"
   return 0
