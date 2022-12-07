@@ -4,8 +4,8 @@ set -e
 
 # default values
 DEFAULT_SYSTEMCTL_PATH="/usr/bin/systemctl"     # systemctl path
-WGUI_KEYPARI_FILE_PATH="db/server/keypair.json" # the path where WireGuard-UI saves the keypair
-
+WGUI_KEYPAIR_FILE_PATH="db/server" # the path where WireGuard-UI saves the keypair
+WGUI_KEYPAIR_FILE="keypair.json"
 # WireGuard
 DEFAULT_WIREGUARD_CONFIG_PATH="/etc/wireguard"                           # the path where WireGuard config will be created
 DEFAULT_WIREGUARD_INTERFACE="wg0"                                        # name of the WireGuard interface that will be created
@@ -217,15 +217,15 @@ PostDown = ""
 }
 
 function export_keypair() {
-  msg "Exporting key-pair to WireGuard-UI -> $WGUI_WORKING_DIR/$WGUI_KEYPARI_FILE_PATH"
+  msg "Exporting key-pair to WireGuard-UI -> $WGUI_WORKING_DIR/$WGUI_KEYPAIR_FILE_PATH/$WGUI_KEYPAIR_FILE"
   printf -v keypair "{
         \"private_key\": \"$PrivateKey\",
         \"public_key\": \"$PublicKey\",
         \"updated_at\": \"$(date +%Y-%m-%dT%H:%M:%S.%NZ)\"
 }
 "
-  rm -f $WGUI_WORKING_DIR/$WGUI_KEYPARI_FILE_PATH || return 1
-  echo "$keypair" >>$WGUI_WORKING_DIR/$WGUI_KEYPARI_FILE_PATH || return 1
+  rm -f $WGUI_WORKING_DIR/$WGUI_KEYPAIR_FILE_PATH || return 1
+  echo "$keypair" >>$WGUI_WORKING_DIR/$WGUI_KEYPAIR_FILE_PATH/$WGUI_KEYPAIR_FILE || return 1
   msg "ok" "Successfully exported key-pair!"
   return 0
 }
