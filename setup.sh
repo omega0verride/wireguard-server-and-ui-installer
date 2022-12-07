@@ -252,12 +252,14 @@ function install_wg_ui() {
     msg "ok" "Successfully downloaded WG-UI!"
   fi
 
-
+  chmod +x $WGUI_INTSTALLATION_PATH/wireguard-ui
   msg "Creating symbolic link between $WGUI_INTSTALLATION_PATH/wireguard-ui -> $WGUI_BIN_PATH/wireguard-ui"
   ln -s -f $WGUI_INTSTALLATION_PATH/wireguard-ui $WGUI_BIN_PATH/wireguard-ui || {
     msg "ko" "Could not create symbolic link for WG-UI installation in WGUI_BIN_PATH: $WGUI_BIN_PATH/wireguard-ui"
     exit 1
   }
+  chmod +x $WGUI_INTSTALLATION_PATH/wireguard-ui $WGUI_BIN_PATH/wireguard-ui
+
   msg "ok" "Successfully created link!"
 
   msg "ok" "Successfully installed WireGuard-UI!"
