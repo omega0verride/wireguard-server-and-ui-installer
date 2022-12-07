@@ -224,7 +224,7 @@ function export_keypair() {
         \"updated_at\": \"$(date +%Y-%m-%dT%H:%M:%S.%NZ)\"
 }
 "
-  rm -f $WGUI_WORKING_DIR/$WGUI_KEYPAIR_FILE_PATH || return 1
+  rm -rf $WGUI_WORKING_DIR/$WGUI_KEYPAIR_FILE_PATH || return 1
   mkdir -p $WGUI_WORKING_DIR/$WGUI_KEYPAIR_FILE_PATH
   echo "$keypair" >>$WGUI_WORKING_DIR/$WGUI_KEYPAIR_FILE_PATH/$WGUI_KEYPAIR_FILE || return 1
   msg "ok" "Successfully exported key-pair!"
